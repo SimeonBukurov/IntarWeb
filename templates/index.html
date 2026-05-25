@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Tester - AI CAPTCHA</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin-top: 60px; 
+            background-color: #f4f4f9;
+        }
+        .captcha-box { 
+            background: white;
+            border: 1px solid #ccc; 
+            padding: 30px; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 450px;
+            width: 100%;
+        }
+        img { 
+            margin: 20px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 4px;
+            max-width: 100%;
+            height: auto;
+            min-height: 50px;
+            background-color: #fafafa;
+        }
+        button { 
+            padding: 12px 20px; 
+            margin: 5px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            transition: background 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .load-btn { background-color: #007bff; }
+        .load-btn:hover { background-color: #0056b3; }
+        
+        .predict-btn { background-color: #28a745; margin-top: 10px; }
+        .predict-btn:hover { background-color: #218838; }
+        
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+        .result { font-weight: bold; font-size: 1.5em; color: #333; margin-bottom: 5px; }
+        .actual { color: #6c757d; font-size: 1em; }
+        .match-success { color: #28a745; font-weight: bold; font-size: 1.1em; margin-top: 10px;}
+        .match-fail { color: #dc3545; font-weight: bold; font-size: 1.1em; margin-top: 10px;}
+    </style>
+</head>
+<body>
+
+<div class="captcha-box">
+    <h2>Yandex Dataset Tester</h2>
+    <p style="color: #666; font-size: 0.9em; margin-top: -10px;">Testing local images from ./dataset</p>
+    
+    <div style="min-height: 80px; display: flex; justify-content: center; align-items: center;">
+        <img id="captcha-img" src="" alt="Click load to fetch an image" style="display:none;" />
+    </div>
+    
+    <div>
+        <button onclick="loadDatasetImage()" class="load-btn">1. Load Random Dataset Image</button>
+        <button onclick="predictCaptcha()" id="predict-btn" class="predict-btn">2. Predict with AI</button>
+    </div>
+    
+    <div class="result-box">
+        <div class="result" id="result-text">Waiting for AI...</div>
+        <div class="actual" id="actual-text">Ground Truth: -</div>
+        <div id="match-status"></div>
+    </div>
+</div>
+
+<script>
+    let currentImageB64 = "";
+    let currentGroundTruth = "";
+
+    async function loadDatasetImage() {
+        // Reset the UI
+        document.getElementById('result-text').innerText = "Waiting for AI...";
+        document.getElementById('match-status').innerText = "";
+        currentImageB64 = "";
+        
+        try {
+            const response = await fetch('/api/generate');
+            const data = await response.json();
+            
+            if (data.error) {
+                alert("Error: " + data.error);
+                return;
+            }
+            
+            currentImageB64 = data.image;
+            currentGroundTruth = data.actual_text;
+            
+            const imgEl = document.getElementById('captcha-img');
+            imgEl.src = currentImageB64;
+            imgEl.style.display = 'block';
+            
+            document.getElementById('actual-text').innerText = `Ground Truth: ${currentGroundTruth}`;
+        } catch (error) {
+            console.error("Failed to load image:", error);
+            alert("Failed to reach the server. Is app.py running?");
+        }
+    }
+
+    async function predictCaptcha() {
+        if (!currentImageB64) {
+            alert("Please load a dataset image first!");
+            return;
+        }
+        
+        document.getElementById('result-text').innerText = "🧠 AI is thinking...";
+        document.getElementById('match-status').innerText = "";
+
+        try {
+            const response = await fetch('/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: currentImageB64 })
+            });
+            
+            const data = await response.json();
+            const aiPrediction = data.prediction;
+            
+            document.getElementById('result-text').innerText = `AI Prediction: ${aiPrediction}`;
+            
+            // Compare prediction to ground truth
+            const statusEl = document.getElementById('match-status');
+            if (aiPrediction === currentGroundTruth) {
+                statusEl.innerText = "✅ PERFECT MATCH!";
+            } else {
+                statusEl.innerText = "❌ INCORRECT";
+                statusEl.className = "match-fail";
+            }
+            
+        } catch (error) {
+            document.getElementById('result-text').innerText = `Error connecting to AI.`;
+            console.error(error);
+        }
+    }
+</script>
+
+</body>
+</html>
